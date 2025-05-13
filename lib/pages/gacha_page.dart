@@ -10,7 +10,7 @@ class GachaPage extends StatefulWidget {
   State<GachaPage> createState() => _GachaPageState();
 }
 
-class _GachaPageState extends State<GachaPage> {
+class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
   final List<GachaItem> _items = [
     GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
     GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
@@ -23,30 +23,109 @@ class _GachaPageState extends State<GachaPage> {
   final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
   int _totalDrawCount = 0;
   bool _guaranteedGiven = false;
+  bool _isDrawing = false;
 
-  final ConfettiController _confettiController = ConfettiController(duration: const Duration(seconds: 1));
+  // Animation controllers
+  late AnimationController _revealController;
+  late AnimationController _shakeController;
+  late Animation<double> _shakeAnimation;
+  
+  final ConfettiController _confettiController = ConfettiController(duration: const Duration(seconds: 2));
   List<GachaItem> _lastDrawnItems = [];
+
+  @override
+  void initState() {
+    super.initState();
+    
+    // Initialize reveal animation controller
+    _revealController = AnimationController(
+      duration: const Duration(milliseconds: 800),
+      vsync: this,
+    );
+    
+    // Initialize shake animation for exciting moments
+    _shakeController = AnimationController(
+      duration: const Duration(milliseconds: 500),
+      vsync: this,
+    );
+    
+    _shakeAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(
+      CurvedAnimation(
+        parent: _shakeController,
+        curve: Curves.elasticInOut,
+      ),
+    );
+    
+    _shakeController.addStatusListener((status) {
+      if (status == AnimationStatus.completed) {
+        _shakeController.reverse();
+      }
+    });
+  }
 
   @override
   void dispose() {
     _confettiController.dispose();
+    _revealController.dispose();
+    _shakeController.dispose();
     super.dispose();
   }
 
-  void _drawItem(BuildContext context, {int times = 1}) {
+  Future<void> _drawItem(BuildContext context, {int times = 1}) async {
+    if (_isDrawing) return;
+    
+    setState(() {
+      _isDrawing = true;
+      _lastDrawnItems = [];
+    });
+    
+    // Reset animation controller
+    _revealController.reset();
+    
     final totalRate = _items.fold(0.0, (sum, item) => sum + item.rate);
     final List<GachaItem> drawnItems = [];
 
-    for (int i = 0; i < times; i++) {
-      final double roll = Random().nextDouble() * totalRate;
-      double cumulative = 0.0;
-      GachaItem? selectedItem;
+    // Simulate opening animation delay
+    await Future.delayed(const Duration(milliseconds: 300));
 
-      for (final item in _items) {
-        cumulative += item.rate;
-        if (roll <= cumulative) {
-          selectedItem = GachaItem.clone(item); // Prevent modifying shared state
-          break;
+    for (int i = 0; i < times; i++) {
+      // Check if this is exactly the 10th draw and we haven't given the guarantee yet
+      bool isGuaranteedDraw = (_totalDrawCount + 1 == 10) && !_guaranteedGiven;
+      
+      GachaItem? selectedItem;
+      
+      if (isGuaranteedDraw) {
+        // Force a guaranteed item on exactly the 10th draw
+        const guaranteedPool = [
+          'Collaboration Skin',
+          'Recall Effect',
+          'Kill Removal Effect',
+          'Kill Notification',
+          'Emote',
+        ];
+        
+        final randomName = guaranteedPool[Random().nextInt(guaranteedPool.length)];
+        final itemToInject = _items.firstWhere((item) => item.name == randomName);
+        selectedItem = GachaItem.clone(itemToInject);
+        
+        // Mark guarantee as given
+        _guaranteedGiven = true;
+        
+        if (selectedItem.name == 'Collaboration Skin') {
+          _confettiController.play();
+          _shakeController.forward(from: 0.0);
+        }
+      } else {
+        // Regular draw
+        final double roll = Random().nextDouble() * totalRate;
+        double cumulative = 0.0;
+
+        for (final item in _items) {
+          cumulative += item.rate;
+          if (roll <= cumulative) {
+            selectedItem = GachaItem.clone(item); // Prevent modifying shared state
+            break;
+          }
         }
       }
 
@@ -57,44 +136,30 @@ class _GachaPageState extends State<GachaPage> {
 
         drawnItems.add(selectedItem);
 
-        if (selectedItem.name == 'Collaboration Skin') {
+        if (selectedItem.name == 'Collaboration Skin' && !isGuaranteedDraw) {
+          // Only trigger confetti if not already triggered by guaranteed draw
           _confettiController.play();
+          _shakeController.forward(from: 0.0);
         }
       }
 
       _totalDrawCount++;
-    }
-
-    // ✅ Apply guarantee on *first* time reaching 10 draws
-    if (_totalDrawCount >= 10 && !_guaranteedGiven) {
-      const guaranteedPool = [
-        'Collaboration Skin',
-        'Recall Effect',
-        'Kill Removal Effect',
-        'Kill Notification',
-        'Emote',
-      ];
-
-      bool hasGuaranteed = drawnItems.any((item) => guaranteedPool.contains(item.name));
-
-      if (!hasGuaranteed) {
-        final randomName = guaranteedPool[Random().nextInt(guaranteedPool.length)];
-        final itemToInject = _items.firstWhere((item) => item.name == randomName);
-        drawnItems[0] = GachaItem.clone(itemToInject);
-
-        if (itemToInject.name == 'Collaboration Skin') {
-          _confettiController.play();
-        }
+      
+      // Add slight delay between items if doing multiple draws
+      if (times > 1 && i < times - 1) {
+        await Future.delayed(const Duration(milliseconds: 50));
       }
-
-      _guaranteedGiven = true;
     }
 
     Provider.of<HistoryManager>(context, listen: false).addSession(drawnItems, times);
 
     setState(() {
       _lastDrawnItems = drawnItems;
+      _isDrawing = false;
     });
+    
+    // Start the reveal animation
+    _revealController.forward();
   }
 
   @override
@@ -108,19 +173,35 @@ class _GachaPageState extends State<GachaPage> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // ✅ Add Banner
+                  // Add Banner
                   const SizedBox(height: 16),
-                  Container(
-                    padding: const EdgeInsets.all(12),
-                    margin: const EdgeInsets.symmetric(horizontal: 20),
-                    decoration: BoxDecoration(
-                      color: Colors.red[100],
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Text(
-                      '🎉 Guaranteed Rare Item on Your First 10th Draw!',
-                      style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      textAlign: TextAlign.center,
+                  AnimatedBuilder(
+                    animation: _shakeController, 
+                    builder: (context, child) {
+                      return Transform.translate(
+                        offset: Offset(_shakeAnimation.value, 0),
+                        child: child,
+                      );
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(12),
+                      margin: const EdgeInsets.symmetric(horizontal: 20),
+                      decoration: BoxDecoration(
+                        color: Colors.red[100],
+                        borderRadius: BorderRadius.circular(8),
+                        boxShadow: [
+                          BoxShadow(
+                            color: Colors.black26,
+                            blurRadius: 4.0,
+                            offset: const Offset(0, 2),
+                          )
+                        ],
+                      ),
+                      child: const Text(
+                        '🎉 Guaranteed Rare Item on Your First 10th Draw!',
+                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                        textAlign: TextAlign.center,
+                      ),
                     ),
                   ),
                   const SizedBox(height: 20),
@@ -130,41 +211,120 @@ class _GachaPageState extends State<GachaPage> {
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       ElevatedButton(
-                        onPressed: () => _drawItem(context, times: 1),
-                        child: const Text('Draw 1'),
+                        onPressed: _isDrawing ? null : () => _drawItem(context, times: 1),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                        child: _isDrawing 
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Draw 1'),
                       ),
-                      const SizedBox(width: 10),
+                      const SizedBox(width: 16),
                       ElevatedButton(
-                        onPressed: () => _drawItem(context, times: 10),
-                        child: const Text('Draw 10'),
+                        onPressed: _isDrawing ? null : () => _drawItem(context, times: 10),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
+                        ),
+                        child: _isDrawing 
+                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            : const Text('Draw 10'),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
-                  const SizedBox(height: 20),
+                  const SizedBox(height: 30),
 
+                  // Results section with animation
                   if (_lastDrawnItems.isNotEmpty) ...[
-                    const Text(
-                      'You got:',
-                      style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                    ScaleTransition(
+                      scale: Tween<double>(begin: 0.6, end: 1.0).animate(
+                        CurvedAnimation(parent: _revealController, curve: Curves.elasticOut),
+                      ),
+                      child: FadeTransition(
+                        opacity: Tween<double>(begin: 0.0, end: 1.0).animate(
+                          CurvedAnimation(parent: _revealController, curve: Curves.easeIn),
+                        ),
+                        child: const Text(
+                          'You got:',
+                          style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                        ),
+                      ),
                     ),
-                    const SizedBox(height: 12),
-                    Wrap(
-                      spacing: 16,
-                      runSpacing: 16,
-                      alignment: WrapAlignment.center,
-                      children: _lastDrawnItems.map((item) {
-                        return Column(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Icon(item.icon, size: 40, color: item.color),
-                            const SizedBox(height: 4),
-                            Text(item.name, style: const TextStyle(fontSize: 14)),
-                            if (item.badgeValue > 0)
-                              Text('+${item.badgeValue} badges', style: const TextStyle(fontSize: 12)),
-                          ],
+                    const SizedBox(height: 16),
+                    AnimatedBuilder(
+                      animation: _revealController,
+                      builder: (context, child) {
+                        return Wrap(
+                          spacing: 16,
+                          runSpacing: 16,
+                          alignment: WrapAlignment.center,
+                          children: List.generate(_lastDrawnItems.length, (index) {
+                            // Calculate staggered delay for each item
+                            final delay = index * 0.1;
+                            final startValue = delay;
+                            final endValue = 1.0;
+                            
+                            // Only animate if controller has passed our start delay
+                            double animationValue = 0.0;
+                            if (_revealController.value > startValue) {
+                              animationValue = (_revealController.value - startValue) / (endValue - startValue);
+                              if (animationValue > 1.0) animationValue = 1.0;
+                            }
+                            
+                            final item = _lastDrawnItems[index];
+                            final isRare = item.name == 'Collaboration Skin';
+                            
+                            return Transform.scale(
+                              scale: 0.5 + (0.5 * animationValue),
+                              child: Opacity(
+                                opacity: animationValue,
+                                child: Container(
+                                  padding: const EdgeInsets.all(12),
+                                  decoration: BoxDecoration(
+                                    color: isRare ? Colors.amber.withOpacity(0.2) : Colors.white,
+                                    borderRadius: BorderRadius.circular(12),
+                                    border: isRare 
+                                        ? Border.all(color: Colors.amber, width: 2) 
+                                        : Border.all(color: Colors.grey.shade300),
+                                    boxShadow: [
+                                      BoxShadow(
+                                        color: isRare ? Colors.amber.withOpacity(0.5) : Colors.black12,
+                                        blurRadius: 8,
+                                        spreadRadius: isRare ? 2 : 0,
+                                      )
+                                    ],
+                                  ),
+                                  child: Column(
+                                    mainAxisSize: MainAxisSize.min,
+                                    children: [
+                                      Icon(
+                                        item.icon, 
+                                        size: 50, 
+                                        color: item.color,
+                                      ),
+                                      const SizedBox(height: 8),
+                                      Text(
+                                        item.name, 
+                                        style: TextStyle(
+                                          fontSize: 16,
+                                          fontWeight: isRare ? FontWeight.bold : FontWeight.normal,
+                                        ),
+                                      ),
+                                      if (item.badgeValue > 0)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            '+${item.badgeValue} badges', 
+                                            style: const TextStyle(fontSize: 14),
+                                          ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                              ),
+                            );
+                          }),
                         );
-                      }).toList(),
+                      },
                     ),
                   ],
                 ],
@@ -177,7 +337,18 @@ class _GachaPageState extends State<GachaPage> {
           child: ConfettiWidget(
             confettiController: _confettiController,
             blastDirectionality: BlastDirectionality.explosive,
+            particleDrag: 0.05,
+            emissionFrequency: 0.05,
+            numberOfParticles: 20,
+            gravity: 0.1,
             shouldLoop: false,
+            colors: const [
+              Colors.red,
+              Colors.amber,
+              Colors.purple,
+              Colors.green,
+              Colors.blue,
+            ],
           ),
         ),
       ],
