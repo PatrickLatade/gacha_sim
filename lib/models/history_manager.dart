@@ -13,26 +13,51 @@ class HistoryManager with ChangeNotifier {
   final List<DrawSession> _drawSessions = [];
   int _badgeTotal = 0;
 
-  List<DrawSession> get drawSessions => _drawSessions.reversed.toList();
+  // 🔁 New state: tracking total draws and guarantee flag
+  int _totalDraws = 0;
+  bool _guaranteedGiven = false;
 
+  // 🔁 Expose new values via getters
+  List<DrawSession> get drawSessions => _drawSessions.reversed.toList();
   int get badgeTotal => _badgeTotal;
+  int get totalDraws => _totalDraws;
+  bool get guaranteedGiven => _guaranteedGiven;
 
   void addSession(List<GachaItem> items, int drawCount) {
-    int sessionBadgeTotal = 0; // Track badges in the current session
+    int sessionBadgeTotal = 0;
 
-    // Calculate the total badges earned in this session
     for (var item in items) {
       sessionBadgeTotal += item.badgeValue;
     }
 
-    _drawSessions.add(DrawSession(items: items, drawCount: drawCount, badgeTotal: sessionBadgeTotal));
+    _drawSessions.add(
+      DrawSession(items: items, drawCount: drawCount, badgeTotal: sessionBadgeTotal),
+    );
 
-    // Accumulate badge value in total
     _badgeTotal += sessionBadgeTotal;
+
+    // 🔁 Update draw counter
+    _totalDraws += drawCount;
 
     notifyListeners();
   }
 
+  // 🔁 Mark guaranteed reward as claimed
+  void markGuaranteedGiven() {
+    _guaranteedGiven = true;
+    notifyListeners();
+  }
+
+  // Optional: reset everything (for debug or reset button)
+  void resetHistory() {
+    _drawSessions.clear();
+    _badgeTotal = 0;
+    _totalDraws = 0;
+    _guaranteedGiven = false;
+    notifyListeners();
+  }
+
+  // Optional: diamonds spent tracker
   int get totalDiamondsSpent {
     int total = 0;
     for (var session in _drawSessions) {

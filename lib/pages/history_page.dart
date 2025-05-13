@@ -8,6 +8,7 @@ class HistoryPage extends StatelessWidget {
     final history = Provider.of<HistoryManager>(context);
     final drawSessions = history.drawSessions;
     final totalDiamonds = history.totalDiamondsSpent;
+    final totalDraws = history.totalDraws;
 
     return Scaffold(
       appBar: AppBar(title: const Text('Draw History')),
@@ -23,6 +24,11 @@ class HistoryPage extends StatelessWidget {
                     style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 20),
+                  Text(
+                    'Total Draws Made: $totalDraws 🎯',
+                    style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  const SizedBox(height: 10),
                   Expanded(
                     child: ListView.builder(
                       itemCount: drawSessions.length,

@@ -1,3 +1,4 @@
+// Same imports
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math';
@@ -21,45 +22,26 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
   ];
 
   final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
-  int _totalDrawCount = 0;
-  bool _guaranteedGiven = false;
   bool _isDrawing = false;
 
-  // Animation controllers
+  // Animations
   late AnimationController _revealController;
   late AnimationController _shakeController;
   late Animation<double> _shakeAnimation;
-  
-  final ConfettiController _confettiController = ConfettiController(duration: const Duration(seconds: 2));
+  final ConfettiController _confettiController = ConfettiController(duration: Duration(seconds: 2));
   List<GachaItem> _lastDrawnItems = [];
 
   @override
   void initState() {
     super.initState();
-    
-    // Initialize reveal animation controller
-    _revealController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    
-    // Initialize shake animation for exciting moments
-    _shakeController = AnimationController(
-      duration: const Duration(milliseconds: 500),
-      vsync: this,
-    );
-    
-    _shakeAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(
-      CurvedAnimation(
-        parent: _shakeController,
-        curve: Curves.elasticInOut,
-      ),
-    );
-    
+    _revealController = AnimationController(vsync: this, duration: Duration(milliseconds: 800));
+    _shakeController = AnimationController(vsync: this, duration: Duration(milliseconds: 500));
+    _shakeAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(CurvedAnimation(
+      parent: _shakeController,
+      curve: Curves.elasticInOut,
+    ));
     _shakeController.addStatusListener((status) {
-      if (status == AnimationStatus.completed) {
-        _shakeController.reverse();
-      }
+      if (status == AnimationStatus.completed) _shakeController.reverse();
     });
   }
 
@@ -73,29 +55,31 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
 
   Future<void> _drawItem(BuildContext context, {int times = 1}) async {
     if (_isDrawing) return;
-    
+
     setState(() {
       _isDrawing = true;
       _lastDrawnItems = [];
     });
-    
-    // Reset animation controller
+
     _revealController.reset();
-    
     final totalRate = _items.fold(0.0, (sum, item) => sum + item.rate);
     final List<GachaItem> drawnItems = [];
 
-    // Simulate opening animation delay
-    await Future.delayed(const Duration(milliseconds: 300));
+    final history = Provider.of<HistoryManager>(context, listen: false);
+    int currentTotalDraws = history.totalDraws;
+    bool guaranteedGiven = history.guaranteedGiven;
+
+    await Future.delayed(Duration(milliseconds: 300));
 
     for (int i = 0; i < times; i++) {
-      // Check if this is exactly the 10th draw and we haven't given the guarantee yet
-      bool isGuaranteedDraw = (_totalDrawCount + 1 == 10) && !_guaranteedGiven;
-      
+      currentTotalDraws++;
+
+      bool isGuaranteedDraw = (currentTotalDraws == 10) && !guaranteedGiven;
+
       GachaItem? selectedItem;
-      
+
       if (isGuaranteedDraw) {
-        // Force a guaranteed item on exactly the 10th draw
+        // Force a rare item from the guaranteed pool
         const guaranteedPool = [
           'Collaboration Skin',
           'Recall Effect',
@@ -103,27 +87,22 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
           'Kill Notification',
           'Emote',
         ];
-        
         final randomName = guaranteedPool[Random().nextInt(guaranteedPool.length)];
-        final itemToInject = _items.firstWhere((item) => item.name == randomName);
-        selectedItem = GachaItem.clone(itemToInject);
-        
-        // Mark guarantee as given
-        _guaranteedGiven = true;
-        
+        selectedItem = GachaItem.clone(_items.firstWhere((item) => item.name == randomName));
+        history.markGuaranteedGiven(); // Mark that guarantee has been triggered
+
         if (selectedItem.name == 'Collaboration Skin') {
           _confettiController.play();
           _shakeController.forward(from: 0.0);
         }
       } else {
-        // Regular draw
+        // Regular gacha roll
         final double roll = Random().nextDouble() * totalRate;
         double cumulative = 0.0;
-
         for (final item in _items) {
           cumulative += item.rate;
           if (roll <= cumulative) {
-            selectedItem = GachaItem.clone(item); // Prevent modifying shared state
+            selectedItem = GachaItem.clone(item);
             break;
           }
         }
@@ -137,28 +116,23 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
         drawnItems.add(selectedItem);
 
         if (selectedItem.name == 'Collaboration Skin' && !isGuaranteedDraw) {
-          // Only trigger confetti if not already triggered by guaranteed draw
           _confettiController.play();
           _shakeController.forward(from: 0.0);
         }
       }
 
-      _totalDrawCount++;
-      
-      // Add slight delay between items if doing multiple draws
       if (times > 1 && i < times - 1) {
-        await Future.delayed(const Duration(milliseconds: 50));
+        await Future.delayed(Duration(milliseconds: 50));
       }
     }
 
-    Provider.of<HistoryManager>(context, listen: false).addSession(drawnItems, times);
+    history.addSession(drawnItems, times);
 
     setState(() {
       _lastDrawnItems = drawnItems;
       _isDrawing = false;
     });
-    
-    // Start the reveal animation
+
     _revealController.forward();
   }
 
@@ -171,18 +145,14 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
           body: Center(
             child: SingleChildScrollView(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  // Add Banner
                   const SizedBox(height: 16),
                   AnimatedBuilder(
-                    animation: _shakeController, 
-                    builder: (context, child) {
-                      return Transform.translate(
-                        offset: Offset(_shakeAnimation.value, 0),
-                        child: child,
-                      );
-                    },
+                    animation: _shakeController,
+                    builder: (context, child) => Transform.translate(
+                      offset: Offset(_shakeAnimation.value, 0),
+                      child: child,
+                    ),
                     child: Container(
                       padding: const EdgeInsets.all(12),
                       margin: const EdgeInsets.symmetric(horizontal: 20),
@@ -193,7 +163,7 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                           BoxShadow(
                             color: Colors.black26,
                             blurRadius: 4.0,
-                            offset: const Offset(0, 2),
+                            offset: Offset(0, 2),
                           )
                         ],
                       ),
@@ -205,35 +175,25 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Draw buttons
                   Row(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
                       ElevatedButton(
                         onPressed: _isDrawing ? null : () => _drawItem(context, times: 1),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        ),
-                        child: _isDrawing 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Draw 1'),
+                        child: _isDrawing
+                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text('Draw 1'),
                       ),
                       const SizedBox(width: 16),
                       ElevatedButton(
                         onPressed: _isDrawing ? null : () => _drawItem(context, times: 10),
-                        style: ElevatedButton.styleFrom(
-                          padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 12),
-                        ),
-                        child: _isDrawing 
-                            ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
-                            : const Text('Draw 10'),
+                        child: _isDrawing
+                            ? SizedBox(width: 20, height: 20, child: CircularProgressIndicator(strokeWidth: 2))
+                            : Text('Draw 10'),
                       ),
                     ],
                   ),
                   const SizedBox(height: 30),
-
-                  // Results section with animation
                   if (_lastDrawnItems.isNotEmpty) ...[
                     ScaleTransition(
                       scale: Tween<double>(begin: 0.6, end: 1.0).animate(
@@ -258,21 +218,16 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                           runSpacing: 16,
                           alignment: WrapAlignment.center,
                           children: List.generate(_lastDrawnItems.length, (index) {
-                            // Calculate staggered delay for each item
                             final delay = index * 0.1;
                             final startValue = delay;
                             final endValue = 1.0;
-                            
-                            // Only animate if controller has passed our start delay
                             double animationValue = 0.0;
                             if (_revealController.value > startValue) {
                               animationValue = (_revealController.value - startValue) / (endValue - startValue);
-                              if (animationValue > 1.0) animationValue = 1.0;
+                              animationValue = animationValue.clamp(0.0, 1.0);
                             }
-                            
                             final item = _lastDrawnItems[index];
                             final isRare = item.name == 'Collaboration Skin';
-                            
                             return Transform.scale(
                               scale: 0.5 + (0.5 * animationValue),
                               child: Opacity(
@@ -282,8 +237,8 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                                   decoration: BoxDecoration(
                                     color: isRare ? Colors.amber.withOpacity(0.2) : Colors.white,
                                     borderRadius: BorderRadius.circular(12),
-                                    border: isRare 
-                                        ? Border.all(color: Colors.amber, width: 2) 
+                                    border: isRare
+                                        ? Border.all(color: Colors.amber, width: 2)
                                         : Border.all(color: Colors.grey.shade300),
                                     boxShadow: [
                                       BoxShadow(
@@ -296,14 +251,10 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                                   child: Column(
                                     mainAxisSize: MainAxisSize.min,
                                     children: [
-                                      Icon(
-                                        item.icon, 
-                                        size: 50, 
-                                        color: item.color,
-                                      ),
+                                      Icon(item.icon, size: 50, color: item.color),
                                       const SizedBox(height: 8),
                                       Text(
-                                        item.name, 
+                                        item.name,
                                         style: TextStyle(
                                           fontSize: 16,
                                           fontWeight: isRare ? FontWeight.bold : FontWeight.normal,
@@ -313,7 +264,7 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                                         Padding(
                                           padding: const EdgeInsets.only(top: 4),
                                           child: Text(
-                                            '+${item.badgeValue} badges', 
+                                            '+${item.badgeValue} badges',
                                             style: const TextStyle(fontSize: 14),
                                           ),
                                         ),
@@ -342,13 +293,7 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
             numberOfParticles: 20,
             gravity: 0.1,
             shouldLoop: false,
-            colors: const [
-              Colors.red,
-              Colors.amber,
-              Colors.purple,
-              Colors.green,
-              Colors.blue,
-            ],
+            colors: const [Colors.red, Colors.amber, Colors.purple, Colors.green, Colors.blue],
           ),
         ),
       ],
