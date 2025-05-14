@@ -15,7 +15,7 @@ class GachaPage extends StatefulWidget {
 
 class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
 final List<GachaItem> _items = [
-  GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
+  GachaItem('Collaboration Skin', 20, Icons.checkroom, Colors.red),
   GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
   GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
   GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),

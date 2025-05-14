@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import '../models/history_manager.dart';
+import '../utils/color_extension.dart'; // Import your color extension
 
 class HistoryPage extends StatelessWidget {
   const HistoryPage({super.key});
@@ -53,28 +54,38 @@ class HistoryPage extends StatelessWidget {
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
                                 const SizedBox(height: 8),
-                                // Display Collab Character (skinCharacter) if available
-                                if (session.items.any((item) => item.skinCharacter != null)) 
-                                  Text(
-                                    'Collab Character: ${session.items.firstWhere((item) => item.skinCharacter != null).skinCharacter}',
-                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
-                                  ),
-                                const SizedBox(height: 8),
                                 Wrap(
                                   spacing: 10,
                                   runSpacing: 10,
                                   children: session.items.map((item) {
+                                    final isCollabSkin = item.skinCharacter != null;
+                                    final skinColor = isCollabSkin
+                                        ? getSkinColor(item.skinCharacter!) // Use color from the extension
+                                        : item.color; // Use original color for non-collabs
                                     return Column(
                                       mainAxisSize: MainAxisSize.min,
                                       children: [
-                                        Icon(item.icon, size: 32, color: item.color),
-                                        Text(item.name, style: const TextStyle(fontSize: 12)),
+                                        Icon(item.icon, size: 32, color: skinColor), // Icon with correct color
+                                        const SizedBox(height: 4),
+                                        // Show either skinCharacter or name *below* the icon
+                                        Text(
+                                          isCollabSkin ? item.skinCharacter! : item.name,
+                                          style: TextStyle(
+                                            fontSize: 12,
+                                            fontWeight: FontWeight.bold,
+                                            color: skinColor, // Apply the correct color
+                                          ),
+                                          textAlign: TextAlign.center,
+                                        ),
                                         if (item.badgeValue > 0)
-                                          Text('+${item.badgeValue} badges', style: const TextStyle(fontSize: 10)),
+                                          Text(
+                                            '+${item.badgeValue} badges',
+                                            style: const TextStyle(fontSize: 10),
+                                          ),
                                       ],
                                     );
                                   }).toList(),
-                                )
+                                ),
                               ],
                             ),
                           ),
@@ -88,4 +99,3 @@ class HistoryPage extends StatelessWidget {
     );
   }
 }
-
