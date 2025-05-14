@@ -49,9 +49,16 @@ class HistoryPage extends StatelessWidget {
                                 ),
                                 const SizedBox(height: 8),
                                 Text(
-                                  'Total Badges Earned: ${session.badgeTotal}', // Show badges per session
+                                  'Total Badges Earned: ${session.badgeTotal}',
                                   style: const TextStyle(fontWeight: FontWeight.bold),
                                 ),
+                                const SizedBox(height: 8),
+                                // Display Collab Character (skinCharacter) if available
+                                if (session.items.any((item) => item.skinCharacter != null)) 
+                                  Text(
+                                    'Collab Character: ${session.items.firstWhere((item) => item.skinCharacter != null).skinCharacter}',
+                                    style: const TextStyle(fontWeight: FontWeight.bold, color: Colors.blue),
+                                  ),
                                 const SizedBox(height: 8),
                                 Wrap(
                                   spacing: 10,

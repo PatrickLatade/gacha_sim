@@ -1,4 +1,3 @@
-// Same imports
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
 import 'dart:math';
@@ -15,16 +14,28 @@ class GachaPage extends StatefulWidget {
 }
 
 class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
-  final List<GachaItem> _items = [
-    GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
-    GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
-    GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
-    GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
-    GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber),
-    GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
-  ];
+final List<GachaItem> _items = [
+  GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
+  GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
+  GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
+  GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
+  GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber, emotes: [
+    Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
+    Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
+    Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
+  ]),
+  GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
+];
 
+  // Define lists for randomized values
   final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
+  final List<String> skinCharacters = [
+    'Kakashi Hatake',
+    'Sasuke Uchiha',
+    'Naruto Uzumaki',
+    'Sakura Haruno'
+  ];
+  
   bool _isDrawing = false;
 
   // Animations
@@ -65,7 +76,6 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
     });
 
     _revealController.reset();
-    final totalRate = _items.fold(0.0, (sum, item) => sum + item.rate);
     final List<GachaItem> drawnItems = [];
 
     final history = Provider.of<HistoryManager>(context, listen: false);
@@ -82,26 +92,31 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
       GachaItem? selectedItem;
 
       if (isGuaranteedDraw) {
-        // Force a rare item from the guaranteed pool
-        const guaranteedPool = [
-          'Collaboration Skin',
-          'Recall Effect',
-          'Kill Removal Effect',
-          'Kill Notification',
-          'Emote',
-        ];
-        final randomName = guaranteedPool[Random().nextInt(guaranteedPool.length)];
-        selectedItem = GachaItem.clone(_items.firstWhere((item) => item.name == randomName));
-        history.markGuaranteedGiven(); // Mark that guarantee has been triggered
-
-        if (selectedItem.name == 'Collaboration Skin') {
-          _confettiController.play();
-          _shakeController.forward(from: 0.0);
+        // Create a subset of items for guaranteed pool (excluding Badge)
+        final guaranteedItems = _items.where((item) => item.name != 'Badge').toList();
+        
+        // Calculate total rate for the guaranteed pool
+        final guaranteedTotalRate = guaranteedItems.fold(0.0, (sum, item) => sum + item.rate);
+        
+        // Roll within the guaranteed pool using their original relative probabilities
+        final double roll = Random().nextDouble() * guaranteedTotalRate;
+        double cumulative = 0.0;
+        
+        for (final item in guaranteedItems) {
+          cumulative += item.rate;
+          if (roll <= cumulative) {
+            selectedItem = GachaItem.clone(item);
+            break;
+          }
         }
+        
+        history.markGuaranteedGiven(); // Mark that guarantee has been triggered
       } else {
         // Regular gacha roll
+        final totalRate = _items.fold(0.0, (sum, item) => sum + item.rate);
         final double roll = Random().nextDouble() * totalRate;
         double cumulative = 0.0;
+        
         for (final item in _items) {
           cumulative += item.rate;
           if (roll <= cumulative) {
@@ -112,13 +127,24 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
       }
 
       if (selectedItem != null) {
-        if (selectedItem.name == 'Badge') {
-          selectedItem.badgeValue = badgeValues[Random().nextInt(badgeValues.length)];
-        }
+      if (selectedItem.name == 'Badge') {
+        selectedItem.badgeValue = badgeValues[Random().nextInt(badgeValues.length)];
+      } else if (selectedItem.name == 'Collaboration Skin') {
+        selectedItem.skinCharacter = skinCharacters[Random().nextInt(skinCharacters.length)];
+      } else if (selectedItem.name == 'Emote' && selectedItem.emotes != null && selectedItem.emotes!.isNotEmpty) {
+        final randomEmote = selectedItem.emotes![Random().nextInt(selectedItem.emotes!.length)];
+        selectedItem = GachaItem(
+          randomEmote.name,
+          selectedItem.rate,
+          selectedItem.icon,
+          randomEmote.color,
+          emotes: [randomEmote],
+        );
+      }
 
         drawnItems.add(selectedItem);
 
-        if (selectedItem.name == 'Collaboration Skin' && !isGuaranteedDraw) {
+        if (selectedItem.name == 'Collaboration Skin') {
           _confettiController.play();
           _shakeController.forward(from: 0.0);
         }
@@ -231,6 +257,7 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                             }
                             final item = _lastDrawnItems[index];
                             final isRare = item.name == 'Collaboration Skin';
+                            
                             return Transform.scale(
                               scale: 0.5 + (0.5 * animationValue),
                               child: Opacity(
@@ -269,6 +296,18 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                                           child: Text(
                                             '+${item.badgeValue} badges',
                                             style: const TextStyle(fontSize: 14),
+                                          ),
+                                        ),
+                                      if (item.skinCharacter != null)
+                                        Padding(
+                                          padding: const EdgeInsets.only(top: 4),
+                                          child: Text(
+                                            item.skinCharacter!,
+                                            style: TextStyle(
+                                              fontSize: 14,
+                                              color: getSkinColor(item.skinCharacter!),
+                                              fontWeight: FontWeight.bold,
+                                            ),
                                           ),
                                         ),
                                     ],
