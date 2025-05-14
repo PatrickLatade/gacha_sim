@@ -3,6 +3,8 @@ import 'package:provider/provider.dart';
 import '../models/history_manager.dart';
 
 class HistoryPage extends StatelessWidget {
+  const HistoryPage({super.key});
+
   @override
   Widget build(BuildContext context) {
     final history = Provider.of<HistoryManager>(context);

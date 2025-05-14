@@ -5,8 +5,11 @@ import 'dart:math';
 import 'package:provider/provider.dart';
 import '../models/gacha_items.dart';
 import '../models/history_manager.dart';
+import '../utils/color_extension.dart';
 
 class GachaPage extends StatefulWidget {
+  const GachaPage({super.key});
+
   @override
   State<GachaPage> createState() => _GachaPageState();
 }
@@ -235,14 +238,14 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
                                 child: Container(
                                   padding: const EdgeInsets.all(12),
                                   decoration: BoxDecoration(
-                                    color: isRare ? Colors.amber.withOpacity(0.2) : Colors.white,
+                                    color: isRare ? Colors.amber.withAlphaPercent(0.2) : Colors.white,
                                     borderRadius: BorderRadius.circular(12),
                                     border: isRare
                                         ? Border.all(color: Colors.amber, width: 2)
                                         : Border.all(color: Colors.grey.shade300),
                                     boxShadow: [
                                       BoxShadow(
-                                        color: isRare ? Colors.amber.withOpacity(0.5) : Colors.black12,
+                                        color: isRare ? Colors.amber.withAlphaPercent(0.5) : Colors.black12,
                                         blurRadius: 8,
                                         spreadRadius: isRare ? 2 : 0,
                                       )
