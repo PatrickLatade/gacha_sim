@@ -14,18 +14,18 @@ class GachaPage extends StatefulWidget {
 }
 
 class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
-final List<GachaItem> _items = [
-  GachaItem('Collaboration Skin', 20, Icons.checkroom, Colors.red),
-  GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
-  GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
-  GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
-  GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber, emotes: [
-    Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
-    Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
-    Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
-  ]),
-  GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
-];
+  final List<GachaItem> _items = [
+    GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
+    GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
+    GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
+    GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
+    GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber, emotes: [
+      Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
+      Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
+      Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
+    ]),
+    GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
+  ];
 
   // Define lists for randomized values
   final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
@@ -41,6 +41,7 @@ final List<GachaItem> _items = [
   // Animations
   late AnimationController _revealController;
   late AnimationController _shakeController;
+  late AnimationController _conversionController; // New controller for conversion animation
   late Animation<double> _shakeAnimation;
   final ConfettiController _confettiController = ConfettiController(duration: Duration(seconds: 2));
   List<GachaItem> _lastDrawnItems = [];
@@ -50,12 +51,22 @@ final List<GachaItem> _items = [
     super.initState();
     _revealController = AnimationController(vsync: this, duration: Duration(milliseconds: 800));
     _shakeController = AnimationController(vsync: this, duration: Duration(milliseconds: 500));
+    _conversionController = AnimationController(vsync: this, duration: Duration(milliseconds: 1200));
+    
     _shakeAnimation = Tween<double>(begin: -5.0, end: 5.0).animate(CurvedAnimation(
       parent: _shakeController,
       curve: Curves.elasticInOut,
     ));
+    
     _shakeController.addStatusListener((status) {
       if (status == AnimationStatus.completed) _shakeController.reverse();
+    });
+    
+    // Start conversion animation after reveal is complete
+    _revealController.addStatusListener((status) {
+      if (status == AnimationStatus.completed && _lastDrawnItems.any((item) => item.isConverted)) {
+        _conversionController.forward(from: 0.0);
+      }
     });
   }
 
@@ -64,6 +75,7 @@ final List<GachaItem> _items = [
     _confettiController.dispose();
     _revealController.dispose();
     _shakeController.dispose();
+    _conversionController.dispose();
     super.dispose();
   }
 
@@ -76,6 +88,7 @@ final List<GachaItem> _items = [
     });
 
     _revealController.reset();
+    _conversionController.reset();
     final List<GachaItem> drawnItems = [];
 
     final history = Provider.of<HistoryManager>(context, listen: false);
@@ -127,24 +140,32 @@ final List<GachaItem> _items = [
       }
 
       if (selectedItem != null) {
-      if (selectedItem.name == 'Badge') {
-        selectedItem.badgeValue = badgeValues[Random().nextInt(badgeValues.length)];
-      } else if (selectedItem.name == 'Collaboration Skin') {
-        selectedItem.skinCharacter = skinCharacters[Random().nextInt(skinCharacters.length)];
-      } else if (selectedItem.name == 'Emote' && selectedItem.emotes != null && selectedItem.emotes!.isNotEmpty) {
-        final randomEmote = selectedItem.emotes![Random().nextInt(selectedItem.emotes!.length)];
-        selectedItem = GachaItem(
-          randomEmote.name,
-          selectedItem.rate,
-          selectedItem.icon,
-          randomEmote.color,
-          emotes: [randomEmote],
-        );
-      }
+        if (selectedItem.name == 'Badge') {
+          selectedItem.badgeValue = badgeValues[Random().nextInt(badgeValues.length)];
+        } else if (selectedItem.name == 'Collaboration Skin') {
+          selectedItem.skinCharacter = skinCharacters[Random().nextInt(skinCharacters.length)];
+        } else if (selectedItem.name == 'Emote' && selectedItem.emotes != null && selectedItem.emotes!.isNotEmpty) {
+          final randomEmote = selectedItem.emotes![Random().nextInt(selectedItem.emotes!.length)];
+          selectedItem = GachaItem(
+            randomEmote.name,
+            selectedItem.rate,
+            selectedItem.icon,
+            randomEmote.color,
+            emotes: [randomEmote],
+          );
+        }
+
+        // Check if this is a duplicate item
+        final isDuplicate = history.isItemOwned(selectedItem);
+        if (isDuplicate && selectedItem.name != 'Badge') {
+          // Mark as converted for animation purposes
+          selectedItem.isConverted = true;
+        }
 
         drawnItems.add(selectedItem);
 
-        if (selectedItem.name == 'Collaboration Skin') {
+        // Play effects for rare items
+        if (selectedItem.name == 'Collaboration Skin' && !isDuplicate) {
           _confettiController.play();
           _shakeController.forward(from: 0.0);
         }
@@ -155,6 +176,7 @@ final List<GachaItem> _items = [
       }
     }
 
+    // Add items to history (which will also check for duplicates)
     history.addSession(drawnItems, times);
 
     setState(() {
@@ -240,7 +262,7 @@ final List<GachaItem> _items = [
                     ),
                     const SizedBox(height: 16),
                     AnimatedBuilder(
-                      animation: _revealController,
+                      animation: Listenable.merge([_revealController, _conversionController]),
                       builder: (context, child) {
                         return Wrap(
                           spacing: 16,
@@ -256,63 +278,42 @@ final List<GachaItem> _items = [
                               animationValue = animationValue.clamp(0.0, 1.0);
                             }
                             final item = _lastDrawnItems[index];
-                            final isRare = item.name == 'Collaboration Skin';
+                            final isRare = item.name == 'Collaboration Skin' && !item.isConverted;
                             
+                            // Handle conversion animation
+                            if (item.isConverted) {
+                              final conversionProgress = _conversionController.value;
+                              final showBadges = conversionProgress > 0.5;
+                              
+                              // First half of animation: show original item
+                              if (!showBadges) {
+                                return Transform.scale(
+                                  scale: 0.5 + (0.5 * animationValue) * (1 - conversionProgress * 2),
+                                  child: Opacity(
+                                    opacity: animationValue * (1 - conversionProgress * 2),
+                                    child: _buildItemContainer(item, isRare, showDuplicate: true),
+                                  ),
+                                );
+                              } 
+                              // Second half of animation: show badges
+                              else {
+                                final badgeProgress = (conversionProgress - 0.5) * 2;
+                                return Transform.scale(
+                                  scale: 0.5 + (0.5 * badgeProgress),
+                                  child: Opacity(
+                                    opacity: badgeProgress,
+                                    child: _buildBadgeContainer(item),
+                                  ),
+                                );
+                              }
+                            }
+                            
+                            // Regular non-converted item
                             return Transform.scale(
                               scale: 0.5 + (0.5 * animationValue),
                               child: Opacity(
                                 opacity: animationValue,
-                                child: Container(
-                                  padding: const EdgeInsets.all(12),
-                                  decoration: BoxDecoration(
-                                    color: isRare ? Colors.amber.withAlphaPercent(0.2) : Colors.white,
-                                    borderRadius: BorderRadius.circular(12),
-                                    border: isRare
-                                        ? Border.all(color: Colors.amber, width: 2)
-                                        : Border.all(color: Colors.grey.shade300),
-                                    boxShadow: [
-                                      BoxShadow(
-                                        color: isRare ? Colors.amber.withAlphaPercent(0.5) : Colors.black12,
-                                        blurRadius: 8,
-                                        spreadRadius: isRare ? 2 : 0,
-                                      )
-                                    ],
-                                  ),
-                                  child: Column(
-                                    mainAxisSize: MainAxisSize.min,
-                                    children: [
-                                      Icon(item.icon, size: 50, color: item.color),
-                                      const SizedBox(height: 8),
-                                      Text(
-                                        item.name,
-                                        style: TextStyle(
-                                          fontSize: 16,
-                                          fontWeight: isRare ? FontWeight.bold : FontWeight.normal,
-                                        ),
-                                      ),
-                                      if (item.badgeValue > 0)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            '+${item.badgeValue} badges',
-                                            style: const TextStyle(fontSize: 14),
-                                          ),
-                                        ),
-                                      if (item.skinCharacter != null)
-                                        Padding(
-                                          padding: const EdgeInsets.only(top: 4),
-                                          child: Text(
-                                            item.skinCharacter!,
-                                            style: TextStyle(
-                                              fontSize: 14,
-                                              color: getSkinColor(item.skinCharacter!),
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                    ],
-                                  ),
-                                ),
+                                child: _buildItemContainer(item, isRare),
                               ),
                             );
                           }),
@@ -339,6 +340,123 @@ final List<GachaItem> _items = [
           ),
         ),
       ],
+    );
+  }
+  
+  // Helper to build item container
+  Widget _buildItemContainer(GachaItem item, bool isRare, {bool showDuplicate = false}) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: isRare ? Colors.amber.withAlphaPercent(0.2) : Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: isRare
+            ? Border.all(color: Colors.amber, width: 2)
+            : Border.all(color: Colors.grey.shade300),
+        boxShadow: [
+          BoxShadow(
+            color: isRare ? Colors.amber.withAlphaPercent(0.5) : Colors.black12,
+            blurRadius: 8,
+            spreadRadius: isRare ? 2 : 0,
+          )
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Stack(
+            alignment: Alignment.topRight,
+            children: [
+              Icon(item.icon, size: 50, color: item.color),
+              if (showDuplicate)
+                Container(
+                  padding: const EdgeInsets.all(4),
+                  decoration: BoxDecoration(
+                    color: Colors.red,
+                    shape: BoxShape.circle,
+                  ),
+                  child: const Text(
+                    'x2',
+                    style: TextStyle(
+                      color: Colors.white,
+                      fontSize: 10,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            item.name,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: isRare ? FontWeight.bold : FontWeight.normal,
+            ),
+          ),
+          if (item.badgeValue > 0 && !item.isConverted)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                '+${item.badgeValue} badges',
+                style: const TextStyle(fontSize: 14),
+              ),
+            ),
+          if (item.skinCharacter != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 4),
+              child: Text(
+                item.skinCharacter!,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: getSkinColor(item.skinCharacter!),
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  // Helper to build badge conversion container
+  Widget _buildBadgeContainer(GachaItem item) {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: Colors.amber.withAlphaPercent(0.1),
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(color: Colors.amber),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.amber.withAlphaPercent(0.3),
+            blurRadius: 8,
+            spreadRadius: 1,
+          )
+        ],
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(Icons.verified, size: 50, color: Colors.blue),
+          const SizedBox(height: 8),
+          Text(
+            'Converted to',
+            style: TextStyle(
+              fontSize: 14,
+              fontWeight: FontWeight.normal,
+            ),
+          ),
+          Text(
+            '+${item.badgeValue} badges',
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.bold,
+              color: Colors.blue,
+            ),
+          ),
+        ],
+      ),
     );
   }
 }
