@@ -24,7 +24,7 @@ class GachaItem {
   static const Map<String, int> conversionRates = {
     'Collaboration Skin': 360,
     'Recall Effect': 90,
-    'Kill Removal Effect': 68,
+    'Elimination Effect': 68,
     'Kill Notification': 68,
     'Emote': 9,
     'Kakashi Emote': 9,
