@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:confetti/confetti.dart';
-import 'dart:math';
 import 'package:provider/provider.dart';
 import '../models/gacha_items.dart';
 import '../models/history_manager.dart';
 import '../utils/color_extension.dart';
+import '../services/gacha_service.dart';
 
 class GachaPage extends StatefulWidget {
   const GachaPage({super.key});
@@ -14,34 +14,13 @@ class GachaPage extends StatefulWidget {
 }
 
 class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
-  final List<GachaItem> _items = [
-    GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
-    GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
-    GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
-    GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
-    GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber, emotes: [
-      Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
-      Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
-      Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
-    ]),
-    GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
-  ];
-
-  // Define lists for randomized values
-  final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
-  final List<String> skinCharacters = [
-    'Kakashi Hatake',
-    'Sasuke Uchiha',
-    'Naruto Uzumaki',
-    'Sakura Haruno'
-  ];
-  
+  final GachaService _gachaService = GachaService();
   bool _isDrawing = false;
 
   // Animations
   late AnimationController _revealController;
   late AnimationController _shakeController;
-  late AnimationController _conversionController; // New controller for conversion animation
+  late AnimationController _conversionController;
   late Animation<double> _shakeAnimation;
   final ConfettiController _confettiController = ConfettiController(duration: Duration(seconds: 2));
   List<GachaItem> _lastDrawnItems = [];
@@ -97,87 +76,55 @@ class _GachaPageState extends State<GachaPage> with TickerProviderStateMixin {
 
     await Future.delayed(Duration(milliseconds: 300));
 
-    for (int i = 0; i < times; i++) {
-      currentTotalDraws++;
-
-      bool isGuaranteedDraw = (currentTotalDraws == 10) && !guaranteedGiven;
-
-      GachaItem? selectedItem;
-
-      if (isGuaranteedDraw) {
-        // Create a subset of items for guaranteed pool (excluding Badge)
-        final guaranteedItems = _items.where((item) => item.name != 'Badge').toList();
-        
-        // Calculate total rate for the guaranteed pool
-        final guaranteedTotalRate = guaranteedItems.fold(0.0, (sum, item) => sum + item.rate);
-        
-        // Roll within the guaranteed pool using their original relative probabilities
-        final double roll = Random().nextDouble() * guaranteedTotalRate;
-        double cumulative = 0.0;
-        
-        for (final item in guaranteedItems) {
-          cumulative += item.rate;
-          if (roll <= cumulative) {
-            selectedItem = GachaItem.clone(item);
-            break;
-          }
-        }
-        
-        history.markGuaranteedGiven(); // Mark that guarantee has been triggered
-      } else {
-        // Regular gacha roll
-        final totalRate = _items.fold(0.0, (sum, item) => sum + item.rate);
-        final double roll = Random().nextDouble() * totalRate;
-        double cumulative = 0.0;
-        
-        for (final item in _items) {
-          cumulative += item.rate;
-          if (roll <= cumulative) {
-            selectedItem = GachaItem.clone(item);
-            break;
-          }
-        }
+    // Check if this is a guaranteed draw (10th draw and guarantee not yet given)
+    bool isGuaranteedDraw = (currentTotalDraws + times == 10) && !guaranteedGiven;
+    
+    // Use the service to draw items
+    if (times == 1) {
+      final item = _gachaService.drawItem(guaranteed: isGuaranteedDraw);
+      drawnItems.add(item);
+      
+      // Check if it's a duplicate
+      final isDuplicate = history.isItemOwned(item);
+      if (isDuplicate && item.name != 'Badge') {
+        item.isConverted = true;
       }
-
-      if (selectedItem != null) {
-        if (selectedItem.name == 'Badge') {
-          selectedItem.badgeValue = badgeValues[Random().nextInt(badgeValues.length)];
-        } else if (selectedItem.name == 'Collaboration Skin') {
-          selectedItem.skinCharacter = skinCharacters[Random().nextInt(skinCharacters.length)];
-        } else if (selectedItem.name == 'Emote' && selectedItem.emotes != null && selectedItem.emotes!.isNotEmpty) {
-          final randomEmote = selectedItem.emotes![Random().nextInt(selectedItem.emotes!.length)];
-          selectedItem = GachaItem(
-            randomEmote.name,
-            selectedItem.rate,
-            selectedItem.icon,
-            randomEmote.color,
-            emotes: [randomEmote],
-          );
+      
+      // Play effects for rare items
+      if (item.name == 'Collaboration Skin' && !isDuplicate) {
+        _confettiController.play();
+        _shakeController.forward(from: 0.0);
+      }
+    } else {
+      // For multi-draw, the guaranteed item should be the last one if applicable
+      List<GachaItem> multiDrawItems = _gachaService.drawMultiple(times, guaranteed: isGuaranteedDraw);
+      
+      for (int i = 0; i < multiDrawItems.length; i++) {
+        final item = multiDrawItems[i];
+        
+        // Check if it's a duplicate
+        final isDuplicate = history.isItemOwned(item);
+        if (isDuplicate && item.name != 'Badge') {
+          item.isConverted = true;
         }
-
-        // Check if this is a duplicate item
-        final isDuplicate = history.isItemOwned(selectedItem);
-        if (isDuplicate && selectedItem.name != 'Badge') {
-          // Mark as converted for animation purposes
-          selectedItem.isConverted = true;
-        }
-
-        drawnItems.add(selectedItem);
-
+        
         // Play effects for rare items
-        if (selectedItem.name == 'Collaboration Skin' && !isDuplicate) {
+        if (item.name == 'Collaboration Skin' && !isDuplicate) {
           _confettiController.play();
           _shakeController.forward(from: 0.0);
         }
-      }
-
-      if (times > 1 && i < times - 1) {
-        await Future.delayed(Duration(milliseconds: 50));
+        
+        drawnItems.add(item);
       }
     }
 
     // Add items to history (which will also check for duplicates)
     history.addSession(drawnItems, times);
+    
+    // If this was the 10th draw, mark guarantee as given
+    if (isGuaranteedDraw) {
+      history.markGuaranteedGiven();
+    }
 
     setState(() {
       _lastDrawnItems = drawnItems;
