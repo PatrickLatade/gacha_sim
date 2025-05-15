@@ -6,17 +6,25 @@ class GachaService {
   final Random _random = Random();
 
   final List<GachaItem> _items = [
-    GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red),
-    GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green),
-    GachaItem('Kill Removal Effect', 0.5, Icons.dangerous, Colors.purple),
-    GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey),
-    GachaItem('Emote', 7.95, Icons.emoji_emotions, Colors.amber, emotes: [
-      Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
-      Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
-      Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
-    ]),
-    GachaItem('Badge', 90.67, Icons.verified, Colors.blue),
+    GachaItem('Collaboration Skin', 0.08, Icons.checkroom, Colors.red, price: 1200.0),
+    GachaItem('Recall Effect', 0.3, Icons.menu_book, Colors.green, price: 300.0),
+    GachaItem('Elimination Effect', 0.5, Icons.dangerous, Colors.purple, price: 225.0),
+    GachaItem('Kill Notification', 0.5, Icons.notifications, Colors.grey, price: 225.0),
+    GachaItem(
+      'Emote',
+      7.95,
+      Icons.emoji_emotions,
+      Colors.amber,
+      price: 100.0,
+      emotes: [
+        Emote(name: 'Kakashi Emote', description: 'Grey Smiley Face', color: Colors.grey),
+        Emote(name: 'Sasuke Emote', description: 'Indigo Smiley Face', color: Colors.indigo),
+        Emote(name: 'Sakura Emote', description: 'Pink Smiley Face', color: Colors.pink),
+      ],
+    ),
+    GachaItem('Badge', 90.67, Icons.verified, Colors.blue, price: 200.0),
   ];
+    List<GachaItem> get items => _items;
 
   final List<int> badgeValues = [20, 15, 12, 10, 8, 5];
   final List<String> skinCharacters = [
@@ -71,6 +79,7 @@ class GachaService {
         selectedItem.rate,
         selectedItem.icon,
         emote.color,
+        price: selectedItem.price,
         emotes: [emote],
       );
     }

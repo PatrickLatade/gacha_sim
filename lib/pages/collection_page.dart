@@ -89,7 +89,7 @@ class CollectionPage extends StatelessWidget {
 
         return Container(
           decoration: BoxDecoration(
-            color: skinColor.withOpacity(0.2),
+            color: skinColor.withAlphaPercent(0.2),
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: skinColor, width: 2),
           ),

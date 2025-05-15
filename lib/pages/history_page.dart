@@ -115,7 +115,7 @@ class HistoryPage extends StatelessWidget {
       decoration: BoxDecoration(
         color: Colors.amber.withAlphaPercent(0.1),
         borderRadius: BorderRadius.circular(8),
-        border: Border.all(color: Colors.amber.withOpacity(0.5)),
+        border: Border.all(color: Colors.amber.withAlphaPercent(0.5)),
       ),
       child: Column(
         mainAxisSize: MainAxisSize.min,

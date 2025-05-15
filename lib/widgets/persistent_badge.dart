@@ -15,21 +15,28 @@ class PersistentBadge extends StatelessWidget {
       child: Container(
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
         decoration: BoxDecoration(
-          color: Colors.blueAccent,
+          color: Colors.white,
           borderRadius: BorderRadius.circular(20),
           boxShadow: [BoxShadow(color: Colors.black26, blurRadius: 4)],
         ),
         child: Row(
           mainAxisSize: MainAxisSize.min,
           children: [
-            const Icon(Icons.verified, color: Colors.white, size: 25), // moderately sized icon
+            const Icon(Icons.verified, color: Colors.blue, size: 25),
             const SizedBox(width: 5),
-            Text(
-              '$badgeTotal',
-              style: const TextStyle(
-                fontSize: 20, // moderate font size
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
+            AnimatedSwitcher(
+              duration: const Duration(milliseconds: 300),
+              transitionBuilder: (Widget child, Animation<double> animation) {
+                return ScaleTransition(scale: animation, child: child);
+              },
+              child: Text(
+                '$badgeTotal',
+                key: ValueKey<int>(badgeTotal), // Key triggers animation
+                style: const TextStyle(
+                  fontSize: 20,
+                  color: Colors.blue,
+                  fontWeight: FontWeight.bold,
+                ),
               ),
             ),
           ],

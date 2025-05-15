@@ -13,11 +13,13 @@ class GachaItem {
   final double rate;
   final IconData icon;
   final Color color;
-  int badgeValue = 0;
+  final double price; // <-- New price field
+
+  int badgeValue;
   String? skinCharacter;
   List<Emote>? emotes;
-  bool isConverted = false; // New flag to track converted state
-  
+  bool isConverted = false; // Track converted state
+
   // Badge conversion rates
   static const Map<String, int> conversionRates = {
     'Collaboration Skin': 360,
@@ -30,7 +32,16 @@ class GachaItem {
     'Sakura Emote': 9,
   };
 
-  GachaItem(this.name, this.rate, this.icon, this.color, {this.badgeValue = 0, this.skinCharacter, this.emotes});
+  GachaItem(
+    this.name,
+    this.rate,
+    this.icon,
+    this.color, {
+    required this.price, // <-- Add required price
+    this.badgeValue = 0,
+    this.skinCharacter,
+    this.emotes,
+  });
 
   // Clone method to create a copy of the item
   static GachaItem clone(GachaItem source) {
@@ -39,25 +50,24 @@ class GachaItem {
       source.rate,
       source.icon,
       source.color,
+      price: source.price, // <-- Copy price too
       badgeValue: source.badgeValue,
       skinCharacter: source.skinCharacter,
       emotes: source.emotes,
     );
   }
-  
+
   // Convert to badges based on predefined rates
   int convertToBadges() {
-    // Handle named emotes
     if (name.contains('Emote') && name != 'Emote') {
       return conversionRates['Emote'] ?? 9;
     }
-    
     return conversionRates[name] ?? 0;
   }
-  
+
   // Generate a unique identifier for collection tracking
   String get uniqueId {
-    if (name == 'Badge') return 'badge'; // avoid treating as collectible
+    if (name == 'Badge') return 'badge';
     if (skinCharacter != null) {
       return 'skin:$skinCharacter';
     } else if (name.contains('Emote') && name != 'Emote') {
