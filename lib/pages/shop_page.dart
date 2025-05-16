@@ -62,40 +62,46 @@ class ShopPage extends StatelessWidget {
         backgroundColor: Colors.deepPurple,
         centerTitle: true,
       ),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+      body: Column(
         children: [
-          if (collabSkins.isNotEmpty) ...[
-            _buildSectionHeader('✨ Collab Skins'),
-            const SizedBox(height: 8),
-            _buildPortraitGrid(context, collabSkins, historyManager),
-            const SizedBox(height: 20),
-          ],
-          if (allEmotes.isNotEmpty) ...[
-            _buildSectionHeader('🎭 Emotes'),
-            const SizedBox(height: 8),
-            ..._buildEmoteList(allEmotes),
-            const SizedBox(height: 20),
-          ],
-          if (collectibles.isNotEmpty) ...[
-            _buildSectionHeader('🎁 Collectibles'),
-            const SizedBox(height: 8),
-            ..._buildItemList(collectibles, historyManager),
-            const SizedBox(height: 20),
-          ],
-          if (processedItems.isEmpty)
-            Center(
-              child: Column(
-                children: [
-                  const Icon(Icons.hourglass_empty, size: 48, color: Colors.grey),
-                  const SizedBox(height: 10),
-                  const Text(
-                    'No items available in the shop.',
-                    style: TextStyle(fontSize: 16, color: Colors.grey),
-                  ),
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (collabSkins.isNotEmpty) ...[
+                  _buildSectionHeader('✨ Collab Skins'),
+                  const SizedBox(height: 8),
+                  _buildPortraitGrid(context, collabSkins, historyManager),
+                  const SizedBox(height: 20),
                 ],
-              ),
+                if (allEmotes.isNotEmpty) ...[
+                  _buildSectionHeader('🎭 Emotes'),
+                  const SizedBox(height: 8),
+                  ..._buildEmoteList(context, allEmotes, historyManager),
+                  const SizedBox(height: 20),
+                ],
+                if (collectibles.isNotEmpty) ...[
+                  _buildSectionHeader('🎁 Collectibles'),
+                  const SizedBox(height: 8),
+                  ..._buildItemList(context, collectibles, historyManager),
+                  const SizedBox(height: 20),
+                ],
+                if (processedItems.isEmpty)
+                  Center(
+                    child: Column(
+                      children: [
+                        const Icon(Icons.hourglass_empty, size: 48, color: Colors.grey),
+                        const SizedBox(height: 10),
+                        const Text(
+                          'No items available in the shop.',
+                          style: TextStyle(fontSize: 16, color: Colors.grey),
+                        ),
+                      ],
+                    ),
+                  ),
+              ],
             ),
+          ),
         ],
       ),
     );
@@ -140,10 +146,109 @@ class ShopPage extends StatelessWidget {
     );
   }
 
-  // Updated to show owned status
-  List<Widget> _buildItemList(List<GachaItem> items, HistoryManager historyManager) {
+  // Handle item purchase
+  void _purchaseItem(BuildContext context, GachaItem item, HistoryManager historyManager) {
+    if (historyManager.badgeTotal < item.price) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Not enough badges to purchase ${item.skinCharacter ?? item.name}'),
+          backgroundColor: Colors.red.shade400,
+        ),
+      );
+      return;
+    }
+
+    // Confirm purchase
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Purchase'),
+        content: Text('Purchase ${item.skinCharacter ?? item.name} for ${item.price.toInt()} badges?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              historyManager.purchaseItem(item);
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Successfully purchased ${item.skinCharacter ?? item.name}!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.black,
+              disabledForegroundColor: Colors.black, 
+            ),
+            child: const Text('Purchase'),
+          ),
+        ],
+      ),
+    );
+  }
+  
+  // Handle emote purchase - UPDATED to pass color and description
+  void _purchaseEmote(BuildContext context, _EmoteDisplayData emote, HistoryManager historyManager) {
+    if (historyManager.badgeTotal < emote.price) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Not enough badges to purchase ${emote.name}'),
+          backgroundColor: Colors.red.shade400,
+        ),
+      );
+      return;
+    }
+
+    // Confirm purchase
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Confirm Purchase'),
+        content: Text('Purchase ${emote.name} for ${emote.price.toInt()} badges?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              // Pass the emote's color and description to correctly record it
+              historyManager.purchaseEmote(
+                emote.name, 
+                emote.price,
+                emote.color,
+                emote.description,
+              );
+              Navigator.pop(context);
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text('Successfully purchased ${emote.name}!'),
+                  backgroundColor: Colors.green,
+                ),
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.deepPurple,
+              foregroundColor: Colors.black,
+              disabledForegroundColor: Colors.black, 
+            ),
+            child: const Text('Purchase'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Updated to add purchase functionality
+  List<Widget> _buildItemList(BuildContext context, List<GachaItem> items, HistoryManager historyManager) {
     return items.map((item) {
       final bool isOwned = historyManager.isItemOwned(item);
+      final bool canPurchase = historyManager.badgeTotal >= item.price;
       
       return AnimatedContainer(
         duration: const Duration(milliseconds: 300),
@@ -193,15 +298,30 @@ class ShopPage extends StatelessWidget {
                 ],
               ],
             ),
+            trailing: isOwned 
+              ? null
+              : ElevatedButton(
+                  onPressed: canPurchase 
+                    ? () => _purchaseItem(context, item, historyManager) 
+                    : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    foregroundColor: Colors.black, 
+                  ),
+                  child: const Text('Buy'),
+                ),
           ),
         ),
       );
     }).toList();
   }
 
-  // Updated to show owned status
-  List<Widget> _buildEmoteList(List<_EmoteDisplayData> emotes) {
+  // Updated to add purchase functionality
+  List<Widget> _buildEmoteList(BuildContext context, List<_EmoteDisplayData> emotes, HistoryManager historyManager) {
     return emotes.map((emote) {
+      final bool canPurchase = historyManager.badgeTotal >= emote.price;
+      
       return AnimatedContainer(
         duration: const Duration(milliseconds: 300),
         curve: Curves.easeIn,
@@ -250,13 +370,26 @@ class ShopPage extends StatelessWidget {
                 ],
               ],
             ),
+            trailing: emote.isOwned 
+              ? null
+              : ElevatedButton(
+                  onPressed: canPurchase 
+                    ? () => _purchaseEmote(context, emote, historyManager) 
+                    : null,
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.deepPurple,
+                    disabledBackgroundColor: Colors.grey.shade300,
+                    foregroundColor: Colors.black, 
+                  ),
+                  child: const Text('Buy'),
+                ),
           ),
         ),
       );
     }).toList();
   }
 
-  // Updated grid to show owned items
+  // Updated grid to show owned items and purchase option
   Widget _buildPortraitGrid(BuildContext context, List<GachaItem> items, HistoryManager historyManager) {
     final screenWidth = MediaQuery.of(context).size.width;
     final isWide = screenWidth > 600;
@@ -270,11 +403,12 @@ class ShopPage extends StatelessWidget {
         crossAxisCount: crossAxisCount,
         crossAxisSpacing: 12,
         mainAxisSpacing: 12,
-        childAspectRatio: 3 / 4,
+        childAspectRatio: 3 / 5,  // Adjusted to fit purchase button
       ),
       itemBuilder: (context, index) {
         final item = items[index];
         final bool isOwned = historyManager.isItemOwned(item);
+        final bool canPurchase = historyManager.badgeTotal >= item.price;
         
         return AnimatedSwitcher(
           duration: Duration(milliseconds: 400 + (index * 100)),
@@ -298,7 +432,7 @@ class ShopPage extends StatelessWidget {
                     children: [
                       Icon(
                         item.icon, 
-                        color: isOwned ? item.color.withOpacity(0.6) : item.color, 
+                        color: isOwned ? item.color.withAlphaPercent(0.6) : item.color, 
                         size: 50,
                       ),
                       const SizedBox(height: 10),
@@ -328,6 +462,20 @@ class ShopPage extends StatelessWidget {
                             color: Colors.green,
                             fontWeight: FontWeight.bold,
                           ),
+                        ),
+                      ] else ...[
+                        const SizedBox(height: 12),
+                        ElevatedButton(
+                          onPressed: canPurchase 
+                            ? () => _purchaseItem(context, item, historyManager)
+                            : null,
+                          style: ElevatedButton.styleFrom(
+                            backgroundColor: Colors.deepPurple,
+                            disabledBackgroundColor: Colors.grey.shade300,
+                            minimumSize: const Size.fromHeight(36),
+                            foregroundColor: Colors.black, 
+                          ),
+                          child: const Text('Buy'),
                         ),
                       ],
                     ],
